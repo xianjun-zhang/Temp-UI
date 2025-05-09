@@ -21,6 +21,7 @@
         "@mui/lab": "5.0.0-alpha.156",
         "@mui/material": "5.15.0",
         "@mui/x-data-grid": "6.8.0",
+        "@react-oauth/google": "^0.12.1",
         "@tabler/icons-react": "^3.31.0",
         "@uiw/codemirror-theme-sublime": "^4.23.7",
         "@uiw/codemirror-theme-vscode": "^4.23.7",

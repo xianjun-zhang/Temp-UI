@@ -12,15 +12,21 @@ import { Input } from '@/ui-component/input/Input'
 import { SwitchInput } from '@/ui-component/switch/Switch'
 import { JsonEditorInput } from '@/ui-component/json/JsonEditor'
 import { TooltipWithParser } from '@/ui-component/tooltip/TooltipWithParser'
+import GoogleOAuthComponent from './GoogleOAuthComponent'
+import { GoogleOAuthProvider } from '@react-oauth/google'
 
 // ===========================|| NodeInputHandler ||=========================== //
 
-const CredentialInputHandler = ({ inputParam, data, disabled = false }) => {
+const CredentialInputHandler = ({ inputParam, data, disabled = false, credentialId }) => {
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
     const customization = useSelector((state) => state.customization)
     const ref = useRef(null)
 
     const [showExpandDialog, setShowExpandDialog] = useState(false)
     const [expandDialogProps, setExpandDialogProps] = useState({})
+
+    // Add key prop to force re-creation of component
+    const componentKey = `${inputParam.name}-${!!data[inputParam.name]}-${credentialId || 'new'}`;
 
     const onExpandDialogClicked = (value, inputParam) => {
         const dialogProp = {
@@ -37,6 +43,25 @@ const CredentialInputHandler = ({ inputParam, data, disabled = false }) => {
     const onExpandDialogSave = (newValue, inputParamName) => {
         setShowExpandDialog(false)
         data[inputParamName] = newValue
+    }
+
+    const handleGoogleOAuthChange = (newValue, paramName) => {
+        // If newValue is null, reset the data
+        if (newValue === null) {
+            data[paramName] = null;
+            return;
+        }
+        
+        // Check if we received successful auth data or an error
+        if (newValue.status === 'success') {
+            // Store the auth code and status in the data object
+            data[paramName] = newValue;
+        } else if (newValue.status === 'failed') {
+            // Handle error case - you could store the error or just leave data unchanged
+            console.error('Google OAuth failed:', newValue.error);
+            // Optionally clear the data
+            data[paramName] = null;
+        }
     }
 
     return (
@@ -91,6 +116,7 @@ const CredentialInputHandler = ({ inputParam, data, disabled = false }) => {
                             />
                         )}
                         {(inputParam.type === 'string' || inputParam.type === 'password' || inputParam.type === 'number') && (
+                            <>
                             <Input
                                 key={data[inputParam.name]}
                                 disabled={disabled}
@@ -102,6 +128,7 @@ const CredentialInputHandler = ({ inputParam, data, disabled = false }) => {
                                 onDialogCancel={() => setShowExpandDialog(false)}
                                 onDialogConfirm={(newValue, inputParamName) => onExpandDialogSave(newValue, inputParamName)}
                             />
+                            </>
                         )}
                         {inputParam.type === 'json' && (
                             <JsonEditorInput
@@ -120,6 +147,21 @@ const CredentialInputHandler = ({ inputParam, data, disabled = false }) => {
                                 value={data[inputParam.name] ?? inputParam.default ?? 'choose an option'}
                             />
                         )}
+
+                        {/* Google OAuth - add key prop to force re-render */}
+                        {inputParam.type === 'google-oauth' && googleClientId && (
+                            <GoogleOAuthProvider key={componentKey} clientId={googleClientId}>
+                                <GoogleOAuthComponent 
+                                    key={componentKey}  
+                                    googleOAuthData={data[inputParam.name]} 
+                                    onChange={(newValue) => {
+                                        handleGoogleOAuthChange(newValue, inputParam.name);
+                                    }}
+                                    credentialId={credentialId}
+                                />
+                            </GoogleOAuthProvider>
+                        )}
+
                     </Box>
                 </>
             )}
@@ -128,10 +170,10 @@ const CredentialInputHandler = ({ inputParam, data, disabled = false }) => {
 }
 
 CredentialInputHandler.propTypes = {
-    inputAnchor: PropTypes.object,
     inputParam: PropTypes.object,
     data: PropTypes.object,
-    disabled: PropTypes.bool
+    disabled: PropTypes.bool,
+    credentialId: PropTypes.string
 }
 
 export default CredentialInputHandler

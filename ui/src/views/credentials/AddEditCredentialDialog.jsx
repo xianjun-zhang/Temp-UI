@@ -110,11 +110,31 @@ const AddEditCredentialDialog = ({ show, dialogProps, onCancel, onConfirm, setEr
 
     const addNewCredential = async () => {
         try {
+            const plainDataObj = { ...credentialData };
+            
+            // Get input definitions to identify Google OAuth inputs
+            const googleOAuthInputs = componentCredential.inputs
+                .filter(input => input.type === 'google-oauth')
+                .map(input => input.name);
+            
+            // Process any Google OAuth data based on credential type
+            for (const key in plainDataObj) {
+                // Check if this is a Google OAuth field
+                if (googleOAuthInputs.includes(key)) {
+                    // For Google OAuth fields, check if we have success status
+                    if (plainDataObj[key] && plainDataObj[key].status === 'success' && plainDataObj[key].authCode) {
+                        // Replace the full object with just the auth code
+                        plainDataObj[key] = plainDataObj[key].authCode
+                    }
+                }
+            }
+            
             const obj = {
                 name,
                 credentialName: componentCredential.name,
-                plainDataObj: credentialData
+                plainDataObj
             }
+
             const createResp = await credentialsApi.createCredential(obj)
             if (createResp.data) {
                 enqueueSnackbar({
@@ -159,12 +179,37 @@ const AddEditCredentialDialog = ({ show, dialogProps, onCancel, onConfirm, setEr
                 credentialName: componentCredential.name
             }
 
+            // Get input definitions to identify Google OAuth inputs
+            const googleOAuthInputs = componentCredential.inputs
+                .filter(input => input.type === 'google-oauth')
+                .map(input => input.name);
+
             let plainDataObj = {}
             for (const key in credentialData) {
-                if (credentialData[key] !== REDACTED_CREDENTIAL_VALUE) {
-                    plainDataObj[key] = credentialData[key]
+                // Skip redacted values since they haven't changed
+                if (credentialData[key] === REDACTED_CREDENTIAL_VALUE) {
+                    continue;
+                }
+                
+                // Check if this is a Google OAuth field
+                if (googleOAuthInputs.includes(key)) {
+                    // For Google OAuth fields, check if this is a new auth attempt
+                    if (credentialData[key] && typeof credentialData[key] === 'object') {
+                        // Only include if it's a new successful authentication
+                        if (credentialData[key].status === 'success' && credentialData[key].authCode) {
+                            // Only send the auth code
+                            plainDataObj[key] = credentialData[key].authCode;
+                        }
+                        // Skip failed auths or unchanged OAuth fields
+                    }
+                    // If it's a string or other primitive, it might be a value from the server,
+                    // so don't include it unless we know it changed
+                } else {
+                    // For non-Google OAuth fields, send the value as is
+                    plainDataObj[key] = credentialData[key];
                 }
             }
+            
             if (Object.keys(plainDataObj).length) saveObj.plainDataObj = plainDataObj
 
             const saveResp = await credentialsApi.updateCredential(credential.id, saveObj)
@@ -281,7 +326,7 @@ const AddEditCredentialDialog = ({ show, dialogProps, onCancel, onConfirm, setEr
                 {componentCredential &&
                     componentCredential.inputs &&
                     componentCredential.inputs.map((inputParam, index) => (
-                        <CredentialInputHandler key={index} inputParam={inputParam} data={credentialData} />
+                        <CredentialInputHandler key={index} inputParam={inputParam} data={credentialData} credentialId={credential?.id} />
                     ))}
             </DialogContent>
             <DialogActions>

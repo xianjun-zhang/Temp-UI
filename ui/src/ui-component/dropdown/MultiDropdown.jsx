@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, Fragment } from 'react'
 import { useSelector } from 'react-redux'
 
-import { Popper, FormControl, TextField, Box, Typography } from '@mui/material'
+import { Popper, FormControl, TextField, Box, Typography, Checkbox, Tooltip } from '@mui/material'
 import Autocomplete, { autocompleteClasses } from '@mui/material/Autocomplete'
 import { styled } from '@mui/material/styles'
 import PropTypes from 'prop-types'
@@ -28,6 +28,124 @@ export const MultiDropdown = ({ name, value, options, onSelect, formControlSx = 
     }
     const getDefaultOptionValue = () => []
     let [internalValue, setInternalValue] = useState(value ?? [])
+    
+    // Prepare options with Select All option
+    const allOptions = options || []
+    // Add Select All option only if there are regular options
+    const displayOptions = allOptions.length > 0 
+        ? [{ label: 'Select All', name: 'select-all' }, ...allOptions] 
+        : allOptions
+    
+    // Handle multiple selection changes
+    const handleMultipleSelectChange = (selection) => {
+        let value = '';
+        
+        // Check if "Select All" was clicked
+        if (selection.findIndex(opt => opt.name === 'select-all') !== -1) {
+            // Check if we need to select all or deselect all
+            const selectedOptions = findMatchingOptions(allOptions, internalValue) || [];
+            const regularOptions = allOptions;
+            
+            // If all options are already selected, this is a deselection action
+            if (selectedOptions.length === regularOptions.length) {
+                // Deselect all - set empty value
+                value = '';
+            } else {
+                // Select all - get all option names except special ones
+                const allOptionsNames = regularOptions.map(opt => opt.name);
+                value = JSON.stringify(allOptionsNames);
+            }
+        } else if (selection.length) {
+            // Normal selection
+            const selectionNames = selection.map(item => item.name);
+            value = JSON.stringify(selectionNames);
+        }
+        
+        setInternalValue(value);
+        onSelect(value);
+    }
+    
+    // Render option with checkbox
+    const renderOption = (props, option) => {
+        // Special handling for "Select All" option
+        if (option.name === 'select-all') {
+            const selectedOptions = findMatchingOptions(allOptions, internalValue) || [];
+            const regularOptions = allOptions;
+            // Check if all options are selected
+            const allSelected = selectedOptions.length === regularOptions.length && regularOptions.length > 0;
+            
+            return (
+                <Box 
+                    component='li' 
+                    {...props} 
+                    style={{ display: 'flex', alignItems: 'center' }}
+                >
+                    <Checkbox
+                        checked={allSelected}
+                        sx={{ marginRight: 1 }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <Typography variant='h5' sx={{ fontWeight: 'bold' }}>Select All</Typography>
+                    </div>
+                </Box>
+            );
+        }
+        
+        const selectedOptions = findMatchingOptions(allOptions, internalValue) || [];
+        const isSelected = selectedOptions.some(selected => selected.name === option.name);
+        
+        return (
+            <Box 
+                component='li' 
+                {...props} 
+                style={{ display: 'flex', alignItems: 'center' }}
+            >
+                <Checkbox
+                    checked={isSelected}
+                    sx={{ marginRight: 1 }}
+                />
+                <Tooltip 
+                    title={
+                        <Fragment>
+                            <Typography sx={{ fontWeight: 'bold' }}>{option.label}</Typography>
+                            {option.description && (
+                                <Typography sx={{ mt: 1 }}>{option.description}</Typography>
+                            )}
+                        </Fragment>
+                    }
+                    placement="right"
+                    arrow
+                >
+                    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', overflow: 'hidden' }}>
+                        <Typography 
+                            variant='h5' 
+                            sx={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                width: '100%'
+                            }}
+                        >
+                            {option.label}
+                        </Typography>
+                        {option.description && (
+                            <Typography 
+                                sx={{ 
+                                    color: customization.isDarkMode ? '#9e9e9e' : '',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    width: '100%'
+                                }}
+                            >
+                                {option.description}
+                            </Typography>
+                        )}
+                    </div>
+                </Tooltip>
+            </Box>
+        );
+    }
 
     return (
         <FormControl sx={{ mt: 1, width: '100%', ...formControlSx }} size='small'>
@@ -37,35 +155,16 @@ export const MultiDropdown = ({ name, value, options, onSelect, formControlSx = 
                 disableClearable={disableClearable}
                 size='small'
                 multiple
-                filterSelectedOptions
-                options={options || []}
-                value={findMatchingOptions(options, internalValue) || getDefaultOptionValue()}
-                onChange={(e, selections) => {
-                    let value = ''
-                    if (selections.length) {
-                        const selectionNames = []
-                        for (let i = 0; i < selections.length; i += 1) {
-                            selectionNames.push(selections[i].name)
-                        }
-                        value = JSON.stringify(selectionNames)
-                    }
-                    setInternalValue(value)
-                    onSelect(value)
-                }}
+                disableCloseOnSelect={true}
+                filterSelectedOptions={false}
+                options={displayOptions}
+                value={findMatchingOptions(allOptions, internalValue) || getDefaultOptionValue()}
+                onChange={(e, selection) => handleMultipleSelectChange(selection)}
                 PopperComponent={StyledPopper}
                 renderInput={(params) => (
                     <TextField {...params} value={internalValue} sx={{ height: '100%', '& .MuiInputBase-root': { height: '100%' } }} />
                 )}
-                renderOption={(props, option) => (
-                    <Box component='li' {...props}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <Typography variant='h5'>{option.label}</Typography>
-                            {option.description && (
-                                <Typography sx={{ color: customization.isDarkMode ? '#9e9e9e' : '' }}>{option.description}</Typography>
-                            )}
-                        </div>
-                    </Box>
-                )}
+                renderOption={renderOption}
                 sx={{ height: '100%' }}
             />
         </FormControl>
